@@ -1,0 +1,123 @@
+package com.kaas.kaasPass.CommonUtils;
+
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.util.Hashtable;
+
+import javax.imageio.ImageIO;
+
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.LuminanceSource;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.NotFoundException;
+import com.google.zxing.Result;
+import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
+import com.google.zxing.client.j2se.MatrixToImageConfig;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeWriter;
+
+public class QrUtils {
+	public static void generateQr(String key, String path, String logoPath) throws Exception{
+        String data = "Hello, World!";
+        int width = 300;
+        int height = 300;
+
+        // Step 1: Generate the QR Code
+        Hashtable<EncodeHintType, Object> hints = new Hashtable<>();
+        hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+
+        BitMatrix matrix = new MultiFormatWriter().encode(data, BarcodeFormat.QR_CODE, width, height, hints);
+
+        // Step 2: Create a BufferedImage to draw the QR code
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+        // Define colors for the QR code
+        Color squareColor = new Color(225, 110, 60); // Color for the finder squares
+        Color contentColor = new Color(62, 103, 117); // Color for the QR content
+
+        // Step 3: Draw the QR code on the image
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (matrix.get(x, y)) {
+                    // Top-left finder square (100x100 area)
+                    if (x < width / 2.5 && y < height / 2.5) {
+                        image.setRGB(x, y, squareColor.getRGB()); // Top-left finder square
+                    }
+                    // Top-right finder square (100x100 area)
+                    else if (x >= width - width / 2.5 && y < height / 2.5) {
+                        image.setRGB(x, y, squareColor.getRGB()); // Top-right finder square
+                    }
+                    // Bottom-left finder square (100x100 area)
+                    else if (x < width / 2.5 && y >= height - height / 2.5) {
+                        image.setRGB(x, y, squareColor.getRGB()); // Bottom-left finder square
+                    }
+                    // Otherwise, draw the QR code content with the content color
+                    else {
+                        image.setRGB(x, y, contentColor.getRGB());
+                    }
+                } else {
+                    image.setRGB(x, y, Color.WHITE.getRGB()); // Background is white
+                }
+            }
+        }
+
+        // Step 4: Add the logo in the center of the QR code (without text)
+        addLogo(image);
+
+        // Step 5: Save the image to a file
+        File outputFile = new File("/Users/ajaykokare/Documents/KasProject/QrCodes/RenuBai.png");
+        ImageIO.write(image, "PNG", outputFile);
+	}
+	
+    private static void addLogo(BufferedImage qrImage) {
+        try {
+            // Load the logo image (make sure the logo file path is correct)
+            File logoFile = new File("/Users/ajaykokare/Documents/KasProject/images.png"); // Replace with the path to your logo image
+            BufferedImage logo = ImageIO.read(logoFile);
+
+            // Resize the logo to fit in the center of the QR code (about 1/4th of the QR code size)
+            int logoWidth = qrImage.getWidth() / 4;
+            int logoHeight = qrImage.getHeight() / 4;
+            Image scaledLogo = logo.getScaledInstance(logoWidth, logoHeight, Image.SCALE_SMOOTH);
+            BufferedImage resizedLogo = new BufferedImage(logoWidth, logoHeight, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2d = resizedLogo.createGraphics();
+            g2d.drawImage(scaledLogo, 0, 0, null);
+            g2d.dispose();
+
+            // Calculate the position to place the logo in the center of the QR code
+            int x = (qrImage.getWidth() - logoWidth) / 2;
+            int y = (qrImage.getHeight() - logoHeight) / 2;
+
+            // Draw the logo on the QR code
+            g2d = qrImage.createGraphics();
+            g2d.drawImage(resizedLogo, x, y, null);
+            g2d.dispose();
+        } catch (IOException e) {
+            System.err.println("Error loading the logo image: " + e.getMessage());
+        }
+    }
+	
+	public static String readQr(String filePath) throws IOException, NotFoundException {
+		
+		BufferedImage bufferedImage = ImageIO.read(new File(filePath));
+		LuminanceSource source = new BufferedImageLuminanceSource(bufferedImage);
+		BinaryBitmap bitMap = new BinaryBitmap(new HybridBinarizer(source));
+		
+		MultiFormatReader reader = new MultiFormatReader();
+		
+		Result result = reader.decode(bitMap);
+		
+		return result.getText();
+	}
+}

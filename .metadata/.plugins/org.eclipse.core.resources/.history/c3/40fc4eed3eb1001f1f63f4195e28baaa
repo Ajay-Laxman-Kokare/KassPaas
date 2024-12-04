@@ -1,0 +1,76 @@
+package com.kaas.kaasPass.ServiceImpl;
+
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.Base64;
+
+import javax.crypto.SealedObject;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+
+import com.google.zxing.common.StringUtils;
+import com.kaas.kaasPass.CommonUtils.CommonUtil;
+import com.kaas.kaasPass.CommonUtils.QrUtils;
+import com.kaas.kaasPass.Model.Tourist;
+import com.kaas.kaasPass.Repository.TouristRepository;
+import com.kaas.kaasPass.Service.KasService;
+
+@Service
+public class KasServiceImpl implements KasService {
+	
+	@Autowired
+	TouristRepository repository;
+	
+	public static String priKey = null;
+
+	@Override
+	public String save(Tourist tourist) throws Exception {
+		
+		KeyPair keyPair = CommonUtil.generateKeyPair();
+		String publicKeyPath = "/Users/ajaykokare/Documents/KasProject/storeKeys/publicKey.txt";
+		String privateKeyPath = "/Users/ajaykokare/Documents/KasProject/storeKeys/privateKey.txt";
+		
+		CommonUtil.savePublicKey(keyPair.getPublic(), publicKeyPath);
+		CommonUtil.savePrivateKey(keyPair.getPrivate(), privateKeyPath);
+	
+		//load keys from file
+		
+		PublicKey publicKey = CommonUtil.loadPublicKey(publicKeyPath);
+		PrivateKey privateKey = CommonUtil.loadPrivateKey(privateKeyPath);
+        
+		
+        String encryptedData = CommonUtil.encrypt(tourist.toString(),publicKey);
+        
+        System.out.println(encryptedData);
+        tourist.setEncryptedString(encryptedData);
+        
+		repository.save(tourist);
+		
+		String path = "/Users/ajaykokare/Documents/KasProject/QrCodes/"+tourist.getContactNumber()+".png";
+		
+		String logoPath = "/Users/ajaykokare/Documents/KasProject/bharatConnect.png";
+		
+		QrUtils.generateQr(encryptedData, path,logoPath);
+		
+		return "QrCode Stored at: "+ path;//repository.save(tourist);
+	}
+
+	@Override
+	public String retriveTourist(String filePath) throws Exception {
+		String sealedString = QrUtils.readQr(filePath);
+		
+		//String secretKey ="MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCxev0bPjzFeaDgS2y7L/IjHo1P9tyNTb3pI3TB24IgLOwXhYyRCH54tT7VtDhIAl3pHjrSJg3SunmrQoSVw9whU5E8lA/yGDnFBx/Oj278z8B/Mc4aoym4GPwjTfPyG8G78OI1foZ9j26p5KAYqf3P0B6vJZslqPn8Y3yJlihEhGKBGTLUADrUWWClL/QLBquNPOTQZ1ktK1oqZUSLHL0inW+FEwsXMo/xk1b0F0CaVloIWsWmOw3TLfenm8Za2sH6Ndm0oOd8VKGg/p6ueJMRS+Z4CNYj7/sVwiLwO3CjCwevfkPcqPCImYXNoPUqLuNOECbTLKJKDxzXgi+YjXhhAgMBAAECggEAIdMlDG1k4yTuXHj7gMRfQ0K2H2yWtaaAoH91p+GoL+4n08bL1rNV+TbfwhZeGJk84So1/ymp/kS0XgeoIavplv9ogXFdhaAI2IxmSzWKa0vD7enl1C1PDOtUGH1plfWky2caEaRqyODOcDomqfSx7wqE4pAJ/Ngyxp+GU2mHBKGeIDV5NcXLNEzFLQbhiddqAJ4KDIkUECQQ39S9yWJCtB102ofmJAyWgrYZB1iKlqsMEWhC/RQIGOBqoFDGDHJEC7J7/PWnJohQCCsNjyHluYPyvBcGLUiRkf9JfVj+Z614a2wcdwKxzrBAhikhYWTVNuxfJTOeBb2034SqM1+yLQKBgQDc/AsrNLqtvwn3oZzIc613h3G/Zrw6za+melHeewuk1Xh0ojATmm+mXOf8y3d28rhV3ut/wnbyngkKDV7U9wRYCnBsMCKl01UACkcLG5wfBcQTxSLJFh5DkSb0h5OnWaN5mx1o9iFS0Xq0ugx1wZfoce6NibKSEg6cjz4QZy3/9QKBgQDNmkGAge/NLrnKPad6/5Oetr6qchBlxXlF13d5Gdj3AhcJzCAwmwjNcaEVelCKlEV5UA7GYJDRDMRR+2F+xEzz2Dh/rEsjIfjE06zwg5j/sjx60518Dx7sUcYgMnwf6NXJGZlcFY9FGnKlZB2qjqbM9DEXo13oU4NcSrbvlcOvPQKBgQDZjilQt/Cw7MrbR/gaQAgfDPEnBfV5ztWGiBXhejHUbXTRHntGUVxp5D1f2tAaAosHvxcKCGEiKgOsKc2azDUyl9RmLl1t88hS6ctXXC8vO3X2ILZGUcgprNU1F+R9dPpD1jn2A5p69lBfbGqn45ex97hrD40F0VEhQMRRUcMvoQKBgQCroG+7STwXKEEY7JyI1R2yKFRCzdKYUd6pCXMG2Se/EbSPjiD00gXoEUlpN2BSPfE8kjKzMFrS1vhugwxgmJawGrcXBIj4O9yA2T4My52FHJDV6x4UOD8VADIGIH5y2JbVNxRIxQqCodA/9bG59TiR7+mnFM1IKaaG/St2Faty9QKBgQCuerzkvIOZ2iqvuW+icLIm/IYHLj8K0M7Dvjn0BQLSkJtnEMrRU1HtQAbAwBnu8rIyMNoQLfAtQOV2Ly8bDZgwpBTBBgmukL1pg0ztXP2hIoz2L/Yal2QsiTlWfZTfrYQmjbdj+CEDkZi2/BA8pWry0e3J3BXhNc2MX+ETXOlTKA==";
+		
+		String unsealed = CommonUtil.decrypt(priKey, sealedString);
+		//Tourist t = repository.findBy()
+		System.out.println(unsealed);
+		
+		return null;
+	}
+
+}
